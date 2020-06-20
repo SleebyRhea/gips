@@ -16,13 +16,35 @@ type PatchFile struct {
 
 var bToU16 = binary.BigEndian.Uint16
 
+// Write the PatchFile to a file
+func (pf *PatchFile) Write(f *os.File) error {
+	f.Seek(0, 0)
+
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+
+	f.WriteString(ipsHeader)
+	for _, pr := range pf.records {
+		pr.Write(f)
+	}
+	f.WriteString(ipsEOF)
+
+	if pf.truncate > 0 {
+		truncate := make([]byte, 3)
+		binary.BigEndian.PutUint16(truncate, pf.truncate)
+		f.Write(truncate)
+	}
+
+	return nil
+}
+
 // Apply the PatchFile definition to an open file
 func (pf *PatchFile) Apply(f *os.File) error {
 	f.Seek(0, 0)
 	for _, p := range pf.records {
 		offset := int64(bToU16(p.offset))
-
-		if !p.isrle {
+		if !p.isRLE {
 			if _, err := f.WriteAt(p.data, offset); err != nil {
 				return err
 			}
@@ -40,41 +62,6 @@ func (pf *PatchFile) Apply(f *os.File) error {
 		if err := f.Truncate(int64(pf.truncate)); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-// Write the PatchFile to a file
-func (pf *PatchFile) Write(f *os.File) error {
-	f.Seek(0, 0)
-
-	if err := f.Truncate(0); err != nil {
-		return err
-	}
-
-	f.WriteString(ipsHeader)
-
-	for _, p := range pf.records {
-		size := make([]byte, 2)
-		binary.BigEndian.PutUint16(size, p.size)
-
-		f.Write(p.offset)
-		if p.isrle {
-			f.Write([]byte{0, 0})
-			f.Write(size)
-		} else {
-			f.Write(size)
-		}
-		f.Write(p.data)
-	}
-
-	f.WriteString(ipsEOF)
-
-	if pf.truncate > 0 {
-		truncate := make([]byte, 3)
-		binary.BigEndian.PutUint16(truncate, pf.truncate)
-		f.Write(truncate)
 	}
 
 	return nil
@@ -108,9 +95,9 @@ func ProcessPatchFile(path string) (*PatchFile, error) {
 
 	for {
 		var data []byte
-		rle := false
 		offset := make([]byte, 3)
 		sizeb := make([]byte, 2)
+		rle := false
 
 		_, err := f.Read(offset)
 		if err != nil {
@@ -152,17 +139,17 @@ func ProcessPatchFile(path string) (*PatchFile, error) {
 		ips.records = append(ips.records, r)
 	}
 
+	// Implement the IPS truncate extension
 	truncb := make([]byte, 64)
 	_, err = f.Read(truncb)
 	if err == nil {
 		ips.truncate = binary.BigEndian.Uint16(truncb)
 	}
 
-	// Check for proper EOF
+	// Check for file EOF and make sure the eof byte that we received wasn't
+	// just a NUL
 	eof := make([]byte, 3)
 	_, err = f.Read(eof)
-
-	// Make sure the eof byte that we received wasn't just a NUL
 	if err != nil {
 		if eof[0] != 0 && len(eof) == 1 {
 			return nil, errors.New("Invalid patch provided. Data found past EOF: " +

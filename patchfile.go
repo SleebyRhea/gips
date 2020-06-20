@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-// PatchFile describes an IPS patch before it's applied to a file, or generated
+// PatchFile represents an IPS patch that has can be applied or saved to a file
 type PatchFile struct {
 	records  []*PatchRecord
 	truncate uint16

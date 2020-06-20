@@ -13,13 +13,13 @@ const (
 
 var verbose bool
 
+func init() {
+	verbose = false
+}
+
 // SetVerbose sets the verbosity for this module
 func SetVerbose(b bool) {
 	verbose = b
-}
-
-func init() {
-	verbose = false
 }
 
 func logByteWrite(f *os.File, pr *PatchRecord) {

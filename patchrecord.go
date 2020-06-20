@@ -15,8 +15,8 @@ type PatchRecord struct {
 	data   []byte
 }
 
-// Validate the PatchRecord by making sure that its size, and match what is set
-// for PatchRecord.isRLE
+// Validate the PatchRecord by making sure that its size, and data match what is
+// set for PatchRecord.isRLE
 func (pr *PatchRecord) Validate() error {
 	if string(pr.offset) == ipsEOF {
 		return errors.New("Offset is EOF")
@@ -35,22 +35,30 @@ func (pr *PatchRecord) Validate() error {
 	return nil
 }
 
+// Bytes returns the byte data that this PatchRecord represents
+func (pr *PatchRecord) Bytes() []byte {
+	data := make([]byte, 0)
+	size := make([]byte, 2)
+	binary.BigEndian.PutUint16(size, pr.size)
+
+	data = append(data, pr.offset...)
+	if pr.isRLE {
+		data = append(data, []byte{0, 0}...)
+	}
+	data = append(data, size...)
+	data = append(data, pr.data...)
+	return data
+}
+
 // Write the PatchRecord to the file descriptor
 func (pr *PatchRecord) Write(f *os.File) error {
 	logByteWrite(f, pr)
 
-	bytes := make([]byte, 0)
-	size := make([]byte, 2)
-	binary.BigEndian.PutUint16(size, pr.size)
-
-	bytes = append(bytes, pr.offset...)
-	if pr.isRLE {
-		bytes = append(bytes, []byte{0, 0}...)
+	if err := pr.Validate(); err != nil {
+		return err
 	}
-	bytes = append(bytes, size...)
-	bytes = append(bytes, pr.data...)
 
-	if _, err := f.Write(bytes); err != nil {
+	if _, err := f.Write(pr.Bytes()); err != nil {
 		return err
 	}
 

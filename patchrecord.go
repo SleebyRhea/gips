@@ -37,20 +37,21 @@ func (pr *PatchRecord) Validate() error {
 
 // Write the PatchRecord to the file descriptor
 func (pr *PatchRecord) Write(f *os.File) error {
-	bytes := make([][]byte, 0)
+	logByteWrite(f, pr)
+
+	bytes := make([]byte, 0)
 	size := make([]byte, 2)
 	binary.BigEndian.PutUint16(size, pr.size)
 
-	bytes = append(bytes, pr.offset)
+	bytes = append(bytes, pr.offset...)
 	if pr.isRLE {
-		bytes = append(bytes, []byte{0, 0})
+		bytes = append(bytes, []byte{0, 0}...)
 	}
-	bytes = append(bytes, size, pr.data)
+	bytes = append(bytes, size...)
+	bytes = append(bytes, pr.data...)
 
-	for _, b := range bytes {
-		if _, err := f.Write(b); err != nil {
-			return err
-		}
+	if _, err := f.Write(bytes); err != nil {
+		return err
 	}
 
 	return nil

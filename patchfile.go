@@ -1,6 +1,7 @@
 package gips
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ type PatchFile struct {
 }
 
 var bToU16 = binary.BigEndian.Uint16
+var u16ToB = binary.BigEndian.PutUint16
 
 // Write the PatchFile to a file
 func (pf *PatchFile) Write(f *os.File) error {
@@ -61,6 +63,55 @@ func (pf *PatchFile) Apply(f *os.File) error {
 	if pf.truncate > 0 {
 		if err := f.Truncate(int64(pf.truncate)); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// Check a file to see whether or not a PatchFile has already been applied
+func (pf *PatchFile) Check(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	defer f.Close()
+
+	if pf.truncate > 0 {
+		fs, err := f.Stat()
+		if err != nil {
+			return err
+		}
+
+		if fs.Size() != int64(pf.truncate) {
+			return errors.New("File is incorrect size")
+		}
+	}
+
+	for pri, pr := range pf.records {
+		var vdata []byte
+
+		offset := binary.BigEndian.Uint64(pr.offset)
+		data := make([]byte, pr.size)
+
+		if pr.isRLE {
+			vdata = make([]byte, int(pr.size))
+			for i := range vdata {
+				vdata[i] = pr.data[0]
+			}
+		} else {
+			vdata = pr.data
+		}
+
+		f.ReadAt(data, int64(offset))
+
+		// TODO: recordVerifyError
+		if !bytes.Equal(data, vdata) {
+			fmt.Printf("Record: %d\n", pri+1)
+			fmt.Printf("\tD: [%d][% x]\n\tV: [%d][% x]\n", offset, data,
+				pr.offset, vdata)
+			return errors.New("Invalid data present in file")
 		}
 	}
 

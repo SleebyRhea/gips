@@ -37,3 +37,9 @@ func logByteWrite(f *os.File, pr *PatchRecord) {
 		}
 	}
 }
+
+func logVerbose(s string) {
+	if verbose {
+		fmt.Println(s)
+	}
+}

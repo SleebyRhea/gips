@@ -32,6 +32,10 @@ func (pr *PatchRecord) Validate() error {
 		return errors.New("Size is 0")
 	}
 
+	if len(pr.data) != int(pr.size) {
+		return errors.New("Size does not match data")
+	}
+
 	return nil
 }
 
